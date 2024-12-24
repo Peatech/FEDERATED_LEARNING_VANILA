@@ -113,7 +113,7 @@ if __name__ == '__main__':
 ######################################################################################
 
   if args.model == 'cnn' and args.dataset == 'cifar':
-      net_glob = CNNCifar(args=args).to(args.device)
+      net_glob = CNNCifar(args=args).to(args.device) # Assigns the model as defined in models.py inside utils folder and send to device
   elif args.model == 'cnn' and (args.dataset == 'mnist' or args.dataset == 'fashion-mnist'):
       net_glob = CNNMnist(args=args).to(args.device)
   elif args.dataset == 'femnist' and args.model == 'cnn':
@@ -128,4 +128,22 @@ if __name__ == '__main__':
   else:
       exit('Error: unrecognized model')
 
+
+######################################################################################
+  # SET 3: TRAIN MODEL
+######################################################################################
+
+  print(net_glob)
+  net_glob.train() # Set the model to train
   
+  # copy weights
+  w_glob = net_glob.state_dict()
+  """
+  #######################################################################
+  acc_test: An empty list to store testing accuracy after each global round.
+  clients: A list of LocalUpdate objects, each representing a client.
+  LocalUpdate: Handles local training for each client using a subset of the dataset (dataset_train) 
+  specified by the user indices (dict_users[idx]).
+
+  #######################################################################
+  """
