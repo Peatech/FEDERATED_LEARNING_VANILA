@@ -28,9 +28,9 @@ if __name__ == '__main__':
   args.device = torch.device('cuda:{}'.format(args.gpu) if torch.cuda.is_available() and args.gpu != -1 else 'cpu')
 
 
-###########################################
+######################################################################################
   # SET 1: LOAD DATASET and SPLIT USERS
-###########################################
+######################################################################################
   """
   The dataset is loaded and preprocessed using normalization and transformation (e.g., converting images to tensors)
   transforms.Normalize((mean,), (std,)): Normalizes the dataset by subtracting the mean and dividing by the standard deviation (std) for each channel.
@@ -44,8 +44,88 @@ if __name__ == '__main__':
         dataset_test = datasets.MNIST('./data/mnist/', train=False, download=True, transform=trans_mnist)
         # sample users
         if args.iid:
+            dict_users = mnist_iid(dataset_train, args.num_users) # Leads to sampling.py where data split is done
+        else:
+            dict_users = mnist_noniid(dataset_train, args.num_users) # Leads to sampling.py where data split is done
+
+  elif args.dataset == 'cifar':
+        #trans_cifar = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        trans_cifar_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        trans_cifar_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        dataset_train = datasets.CIFAR10('./data/cifar', train=True, download=True, transform=trans_cifar_train)
+        dataset_test = datasets.CIFAR10('./data/cifar', train=False, download=True, transform=trans_cifar_test)
+        if args.iid:
+            dict_users = cifar_iid(dataset_train, args.num_users)
+        else:
+            dict_users = cifar_noniid(dataset_train, args.num_users)
+  elif args.dataset == 'fashion-mnist':
+        trans_fashion_mnist = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+        dataset_train = datasets.FashionMNIST('./data/fashion-mnist', train=True, download=True,
+                                              transform=trans_fashion_mnist)
+        dataset_test  = datasets.FashionMNIST('./data/fashion-mnist', train=False, download=True,
+                                              transform=trans_fashion_mnist)
+        if args.iid:
             dict_users = mnist_iid(dataset_train, args.num_users)
         else:
             dict_users = mnist_noniid(dataset_train, args.num_users)
+  elif args.dataset == 'femnist':
+        dataset_train = FEMNIST(train=True)
+        dataset_test = FEMNIST(train=False)
+        dict_users = dataset_train.get_client_dic()
+        args.num_users = len(dict_users)
+        if args.iid:
+            exit('Error: femnist dataset is naturally non-iid')
+        else:
+            print("Warning: The femnist dataset is naturally non-iid, you do not need to specify iid or non-iid")
+  elif args.dataset == 'shakespeare':
+        dataset_train = ShakeSpeare(train=True)
+        dataset_test = ShakeSpeare(train=False)
+        dict_users = dataset_train.get_client_dic()
+        args.num_users = len(dict_users)
+        if args.iid:
+            exit('Error: ShakeSpeare dataset is naturally non-iid')
+        else:
+            print("Warning: The ShakeSpeare dataset is naturally non-iid, you do not need to specify iid or non-iid")
+  else:
+        exit('Error: unrecognized dataset')
+
+  """
+    The img_size is typically used for:Defining Model Architectures:
+    dataset_train[0][0]:
+    This extracts only the image part of the tuple.
+    .shape:
+    This gives the dimensions of the image tensor. For example:
+    For MNIST, it would return (1, 28, 28)
+    The size of the input image determines the input dimensions for models such as MLPs (multi-layer perceptrons) or CNNs (convolutional neural networks).
+  """
+  img_size = dataset_train[0][0].shape
+
+######################################################################################
+  # SET 2: ASSIGN MODEL: This step is simply for selecting model AND assigning the global model
+######################################################################################
+
+  if args.model == 'cnn' and args.dataset == 'cifar':
+      net_glob = CNNCifar(args=args).to(args.device)
+  elif args.model == 'cnn' and (args.dataset == 'mnist' or args.dataset == 'fashion-mnist'):
+      net_glob = CNNMnist(args=args).to(args.device)
+  elif args.dataset == 'femnist' and args.model == 'cnn':
+      net_glob = CNNFemnist(args=args).to(args.device)
+  elif args.dataset == 'shakespeare' and args.model == 'lstm':
+      net_glob = CharLSTM().to(args.device)
+  elif args.model == 'mlp':
+      len_in = 1
+      for x in img_size:
+          len_in *= x
+      net_glob = MLP(dim_in=len_in, dim_hidden=64, dim_out=args.num_classes).to(args.device)
+  else:
+      exit('Error: unrecognized model')
 
   
