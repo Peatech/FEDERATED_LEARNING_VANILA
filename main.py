@@ -141,9 +141,48 @@ if __name__ == '__main__':
   """
   #######################################################################
   acc_test: An empty list to store testing accuracy after each global round.
+  
   clients: A list of LocalUpdate objects, each representing a client.
+ 
   LocalUpdate: Handles local training for each client using a subset of the dataset (dataset_train) 
   specified by the user indices (dict_users[idx]).
-
+  The for idx in range(args.num_users) loop ensures that a LocalUpdate object is created for each user (client).
   #######################################################################
   """
+
+  acc_test = [] # An empty list to store testing accuracy after each global round.
+  clients = [LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
+             for idx in range(args.num_users)]
+  m, clients_index_array = max(int(args.frac * args.num_users), 1), range(args.num_users)
+  for iter in range(args.epochs):
+      w_locals, loss_locals, weight_locols= [], [], []
+      idxs_users = np.random.choice(clients_index_array, m, replace=False)
+      for idx in idxs_users:
+          w, loss = clients[idx].train(net=copy.deepcopy(net_glob).to(args.device))
+          w_locals.append(copy.deepcopy(w))
+          loss_locals.append(copy.deepcopy(loss))
+          weight_locols.append(len(dict_users[idx]))
+
+      # update global weights
+      w_glob = FedWeightAvg(w_locals, weight_locols)
+      # copy weight to net_glob
+      net_glob.load_state_dict(w_glob)
+
+      # print accuracy
+      net_glob.eval()
+      acc_t, loss_t = test_img(net_glob, dataset_test, args)
+      print("Round {:3d},Testing accuracy: {:.2f}".format(iter, acc_t))
+
+      acc_test.append(acc_t.item())
+
+  rootpath = './log'
+  if not os.path.exists(rootpath):
+      os.makedirs(rootpath)
+  accfile = open(rootpath + '/accfile_fed_{}_{}_{}_iid{}.dat'.
+                 format(args.dataset, args.model, args.epochs, args.iid), "w")
+
+  for ac in acc_test:
+      sac = str(ac)
+      accfile.write(sac)
+      accfile.write('\n')
+  accfile.close()
