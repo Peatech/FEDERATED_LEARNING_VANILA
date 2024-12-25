@@ -6,7 +6,20 @@ import numpy as np
 import random
 from sklearn import metrics
 
+"""
+This is a wrapper around the standard PyTorch dataset. Its purpose is to allow each client to only access its own subset of the dataset.
+Initialization (__init__ method):
+dataset: The full dataset (e.g., MNIST, CIFAR10).
+idxs: Indices of the dataset samples that belong to a particular client.
+Example:
 
+idxs = [0, 1, 2, ..., 599]  # Client 0 owns these samples
+client_dataset = DatasetSplit(full_dataset, idxs)
+Length (__len__ method):
+Returns the number of samples owned by the client.
+Item Retrieval (__getitem__ method):
+Given an index (item), it retrieves the corresponding image and label from the dataset.
+"""
 class DatasetSplit(Dataset):
     def __init__(self, dataset, idxs):
         self.dataset = dataset
@@ -19,7 +32,45 @@ class DatasetSplit(Dataset):
         image, label = self.dataset[self.idxs[item]]
         return image, label
 
+"""
+This simulates local training on a client using its own dataset.
+Initialization (__init__)
+Inputs:
+args: Contains various configurations like batch size, learning rate, device type (CPU/GPU), etc.
+dataset: The full dataset.
+idxs: Indices of samples that belong to this client.
+Purpose:
+Creates a DataLoader (ldr_train) for the client's data to enable mini-batch training.
+Sets the loss function (CrossEntropyLoss), learning rate, and learning rate decay.
 
+This method handles local training for a single client.
+
+Setup:
+Sets the model (net) to training mode.
+Initializes the optimizer (SGD with momentum) and learning rate scheduler.
+Training Loop:
+Outer Loop (for iter in range(self.args.local_ep)):
+Runs for the specified number of local epochs (local_ep).
+Inner Loop (Mini-batch Training):
+Retrieves a batch of images and labels from the client's data (self.ldr_train).
+Performs the following steps for each mini-batch:
+Forward Pass:
+Computes predictions (log_probs) using the model.
+Loss Calculation:
+Computes the error (loss) between predictions and true labels using CrossEntropyLoss.
+Backward Pass:
+Computes gradients of the loss with respect to the model’s parameters.
+Parameter Update:
+Updates the model's parameters using the optimizer.
+Learning Rate Adjustment:
+Adjusts the learning rate after each mini-batch using the scheduler.
+Log Loss (Optional):
+If verbose is enabled, prints loss information every 10 mini-batches.
+Output:
+After training, the method returns:
+net.state_dict(): The updated model weights after training.
+sum(epoch_loss) / len(epoch_loss): The average loss over all epochs.
+"""
 class LocalUpdate(object):
     def __init__(self, args, dataset=None, idxs=None):
         self.args = args
