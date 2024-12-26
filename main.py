@@ -141,12 +141,39 @@ if __name__ == '__main__':
   """
   #######################################################################
   acc_test: An empty list to store testing accuracy after each global round.
+
+  clients:
+  Creates a list of LocalUpdate objects, one for each client.
+  Each LocalUpdate object is initialized with:
+  The client’s data (dict_users[idx]).
+  Training configurations (args).
+  What Happens?:
+  For num_users clients, the code:
+  Divides the dataset so that each client has access to its own portion.
+  Sets up local training for each client.
+  Example: Let’s assume:
+  num_users = 3.
+  dict_users = {0: [0, 1, 2], 1: [3, 4, 5], 2: [6, 7, 8]}.
+  Each client owns 3 samples.
+  After this line, clients would be:
+  A list of LocalUpdate objects:
+  clients[0]: Handles local training for Client 0 with data indices [0, 1, 2].
+  clients[1]: Handles local training for Client 1 with data indices [3, 4, 5].
+  clients[2]: Handles local training for Client 2 with data indices [6, 7, 8].
+
+  Selecting Subset of Clients
+  m, clients_index_array = max(int(args.frac * args.num_users), 1), range(args.num_users)
+  args.frac: Fraction of clients to be selected in each round (e.g., 0.1 means 10% of clients are selected).
+  args.num_users: Total number of clients in the FL setup.
+  int(args.frac * args.num_users): Computes the number of clients to select (e.g., 10 clients if frac=0.1 and num_users=100).
+  max(..., 1): Ensures at least one client is selected (in case frac is very small).
+  clients_index_array: Represents the indices of all clients (e.g., range(100) if num_users=100).
+  Example:
+  Suppose args.num_users = 10 and args.frac = 0.3.
+  m = max(int(0.3 * 10), 1) = 3.
+  clients_index_array = range(10) = [0, 1, 2, ..., 9].
+
   
-  clients: A list of LocalUpdate objects, each representing a client.
- 
-  LocalUpdate: Handles local training for each client using a subset of the dataset (dataset_train) 
-  specified by the user indices (dict_users[idx]).
-  The for idx in range(args.num_users) loop ensures that a LocalUpdate object is created for each user (client).
   #######################################################################
   """
 
@@ -154,23 +181,29 @@ if __name__ == '__main__':
   clients = [LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx])
              for idx in range(args.num_users)]
   m, clients_index_array = max(int(args.frac * args.num_users), 1), range(args.num_users)
+
+  # Loop Over Training Rounds, args.epochs: Number of FL rounds (global training iterations).
   for iter in range(args.epochs):
       w_locals, loss_locals, weight_locols= [], [], []
+
+      # Randomly selects m clients (without replacement) for training in this round from the list clients_index_array..
       idxs_users = np.random.choice(clients_index_array, m, replace=False)
+
+      # Training Selected Clients, Loops through the selected clients (idxs_users) and performs local training.
       for idx in idxs_users:
-          w, loss = clients[idx].train(net=copy.deepcopy(net_glob).to(args.device))
-          w_locals.append(copy.deepcopy(w))
-          loss_locals.append(copy.deepcopy(loss))
-          weight_locols.append(len(dict_users[idx]))
+          w, loss = clients[idx].train(net=copy.deepcopy(net_glob).to(args.device)) # Calls the train method of the LocalUpdate class for the client.
+          w_locals.append(copy.deepcopy(w))  # Collects the updated weights from all selected clients.
+          loss_locals.append(copy.deepcopy(loss)) # Collects the training losses from all selected clients.
+          weight_locols.append(len(dict_users[idx])) # Collects the size of each client’s dataset (used for weighted averaging)
 
       # update global weights
-      w_glob = FedWeightAvg(w_locals, weight_locols)
+      w_glob = FedWeightAvg(w_locals, weight_locols) # Aggregates the weights from all selected clients using weighted averaging.
       # copy weight to net_glob
-      net_glob.load_state_dict(w_glob)
+      net_glob.load_state_dict(w_glob) # Updates the global model (net_glob) with the aggregated weights.
 
       # print accuracy
       net_glob.eval()
-      acc_t, loss_t = test_img(net_glob, dataset_test, args)
+      acc_t, loss_t = test_img(net_glob, dataset_test, args) # This test_img function is used to evaluate the performance of the global model (net_g) on a given test dataset (datatest). It calculates the test loss and accuracy of the model and optionally prints the results if args.verbose is set.
       print("Round {:3d},Testing accuracy: {:.2f}".format(iter, acc_t))
 
       acc_test.append(acc_t.item())
