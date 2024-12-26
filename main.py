@@ -1,12 +1,19 @@
-
-import random
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import copy
 import numpy as np
 from torchvision import datasets, transforms
 import torch
 import os
 
-
+from utils.sampling import mnist_iid, mnist_noniid, cifar_iid,cifar_noniid
+from utils.options import args_parser
+from models.Update import LocalUpdate
+from models.Nets import MLP, CNNMnist, CNNCifar, CNNFemnist, CharLSTM
+from models.Fed import FedWeightAvg
+from models.test import test_img
+from utils.dataset import FEMNIST, ShakeSpeare
 
 if __name__ == '__main__':
 
@@ -182,32 +189,41 @@ if __name__ == '__main__':
              for idx in range(args.num_users)]
   m, clients_index_array = max(int(args.frac * args.num_users), 1), range(args.num_users)
 
-  # Loop Over Training Rounds, args.epochs: Number of FL rounds (global training iterations).
+  #######################################################################
+  # Global training iterations. Loop Over Training Rounds, args.epochs: Number of FL rounds.
+  #######################################################################
   for iter in range(args.epochs):
       w_locals, loss_locals, weight_locols= [], [], []
 
       # Randomly selects m clients (without replacement) for training in this round from the list clients_index_array..
       idxs_users = np.random.choice(clients_index_array, m, replace=False)
 
-      # Training Selected Clients, Loops through the selected clients (idxs_users) and performs local training.
+      """
+      #######################################################################
+      Local Training Loop. Training Selected Clients, Loops through the selected clients (idxs_users) and performs local training.
+      Each selected client (idx) trains its local model (clients[idx].train).
+      #######################################################################
+      """
       for idx in idxs_users:
           w, loss = clients[idx].train(net=copy.deepcopy(net_glob).to(args.device)) # Calls the train method of the LocalUpdate class for the client.
           w_locals.append(copy.deepcopy(w))  # Collects the updated weights from all selected clients.
           loss_locals.append(copy.deepcopy(loss)) # Collects the training losses from all selected clients.
           weight_locols.append(len(dict_users[idx])) # Collects the size of each client’s dataset (used for weighted averaging)
-
+      
+      ########-------END OF LOCAL TRAINING
       # update global weights
       w_glob = FedWeightAvg(w_locals, weight_locols) # Aggregates the weights from all selected clients using weighted averaging.
       # copy weight to net_glob
       net_glob.load_state_dict(w_glob) # Updates the global model (net_glob) with the aggregated weights.
 
       # print accuracy
-      net_glob.eval()
+      net_glob.eval()  # Set the global model for evaluation on test dataset
       acc_t, loss_t = test_img(net_glob, dataset_test, args) # This test_img function is used to evaluate the performance of the global model (net_g) on a given test dataset (datatest). It calculates the test loss and accuracy of the model and optionally prints the results if args.verbose is set.
       print("Round {:3d},Testing accuracy: {:.2f}".format(iter, acc_t))
 
-      acc_test.append(acc_t.item())
+      acc_test.append(acc_t.item())  # The acc_test list is used to store the test accuracy values for all the training rounds (epochs).
 
+  ########-------END OF GLOBAL TRAINING
   rootpath = './log'
   if not os.path.exists(rootpath):
       os.makedirs(rootpath)
