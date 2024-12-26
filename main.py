@@ -9,7 +9,7 @@ import os
 
 from utils.sampling import mnist_iid, mnist_noniid, cifar_iid,cifar_noniid
 from utils.options import args_parser
-from models.Update import LocalUpdate
+from models.update import LocalUpdate
 from models.Nets import MLP, CNNMnist, CNNCifar, CNNFemnist, CharLSTM
 from models.Fed import FedWeightAvg
 from models.test import test_img
