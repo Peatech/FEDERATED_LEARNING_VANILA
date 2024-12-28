@@ -63,7 +63,7 @@ def mnist_iid(dataset, num_users):
       range(len(dataset)) generates numbers from 0 to len(dataset) - 1, which correspond to the indices of all data samples in the dataset.
       The list comprehension [i for i in range(len(dataset))] converts this range object into a list.
       This list will be used to randomly assign data indices to users.
-      For a dataset with 10 samples:
+     
       len(dataset) = 60000
       all_idxs = [0, 1, 2, 3, 4, 5, 6, 7, 8, ..., 59999]  # List of indices
     #############################################
